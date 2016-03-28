@@ -1,0 +1,141 @@
+---
+title: "Capstone Project"
+author: "monade"
+date: "17 March 2016"
+output: html_document
+---
+
+
+# Abstract #
+The goal of this Capstone project is to develop an prediction model and an application to predict the next word
+based on the previous words an user has typed in. There may be one, two or more preceeding words taken into account
+for the prediction of the next word. The training data for the model is based on three large text input sets which 
+consists of blog, news and twitter data sets. This presentation aims to give an overview of the data and convert
+the data into structures that can be used for further processing.
+
+Load required libraries
+```{r, error=FALSE, warning=FALSE, message=FALSE}
+library(tm)
+library(RWeka)
+```
+
+### Getting to know the data ###
+There are 3 files in the english corpus. Before going into details, let's examine the start of the files
+```{r}
+readLines( file( "../final/en_US/en_US.blogs.txt", "r"), 3 )
+readLines( file( "../final/en_US/en_US.news.txt", "r"), 3 )
+readLines( file( "../final/en_US/en_US.twitter.txt", "r"), 3 )
+```
+
+Because we are concerned with word prediction based on the preceeding words I decided to leave punctuations in 
+the files. For basic statistics the files are loaded into document term matrices with this function. Because of 
+the size of the files only a random sample of the lines is used. The term n-gram refers to n consecutive words.
+
+```{r}
+getTdm <- function( path, ngram, N = -1)
+{
+  # open file
+  con <- file( path, "r")
+  
+  # read lines 
+  lines <- readLines( con, N, skipNul = T )
+  
+  # close file
+  close( con )
+  
+  # count number of lines
+  lineCount <- length( lines )
+  str <- paste(lines, collapse=' ' )
+    
+  # count words
+  wordCount <- length(unlist(strsplit(str, "\\s+")))
+  
+  # count chars
+  charCount <- sum(nchar( str ))
+  
+  # deallocate some memory
+  rm(str)
+  
+  # sample some data
+  size <- 1000
+  lines <- lines[sample.int(lineCount, size)]
+
+  # create corpus
+  corpus <- VCorpus( VectorSource( paste(lines, collapse=' ' )))
+
+  # tokenize using n-grams
+  tok <- function(x) NGramTokenizer(x, Weka_control(min = ngram, max = ngram))
+  
+  # create term matrix
+  tdm <- DocumentTermMatrix(corpus, control = list(tokenize=tok))
+  
+  list( counts = c(lineCount, wordCount, charCount), tdm=tdm)
+}
+```
+
+Get document term matrices
+```{r}
+ngram <- 1
+N <- 1000
+blogs <- getTdm( "../final/en_US/en_US.blogs.txt", ngram, N )
+news <- getTdm( "../final/en_US/en_US.news.txt", ngram, N )
+twitter <- getTdm( "../final/en_US/en_US.twitter.txt", ngram, N )
+```
+
+Some basic count statistics
+```{r}
+data <- data.frame( blogs$counts, news$counts, twitter$counts)
+colnames(data) <- c("blogs", "news", "twitter")
+rownames(data) <- c("lines", "words", "chars")
+data
+```
+
+A basic frequency statistic shows only a few hotspot words 
+```{r}
+m <- as.matrix(blogs$tdm)
+h <- sort(m, decreasing = T, index.return=T)
+m[1, head(h$ix, 10)]
+
+m <- as.matrix(news$tdm)
+h <- sort(m, decreasing = T, index.return=T)
+m[1, head(h$ix, 10)]
+
+m <- as.matrix(twitter$tdm)
+h <- sort(m, decreasing = T, index.return=T)
+m[1, head(h$ix, 10)]
+
+hist(h$x, main="Histogram of 1-gram frequencies for twitter file")
+```
+
+2-grams give the first hint of a prediction algorithm
+```{r}
+ngram <- 1
+N <- 1000
+blogs <- getTdm( "../final/en_US/en_US.blogs.txt", ngram, N )
+news <- getTdm( "../final/en_US/en_US.news.txt", ngram, N )
+twitter <- getTdm( "../final/en_US/en_US.twitter.txt", ngram, N )
+
+m <- as.matrix(blogs$tdm)
+h <- sort(m, decreasing = T, index.return=T)
+m[1, head(h$ix, 10)]
+
+m <- as.matrix(news$tdm)
+h <- sort(m, decreasing = T, index.return=T)
+m[1, head(h$ix, 10)]
+
+m <- as.matrix(twitter$tdm)
+h <- sort(m, decreasing = T, index.return=T)
+m[1, head(h$ix, 10)]
+
+hist(h$x, main="Histogram of 2-gram frequencies for twitter file")
+```
+
+Accumulate tmds
+```{r}
+tdm <- c(blogs$tdm, news$tdm, twitter$tdm)
+m <- as.matrix(tdm)
+top <- colSums( m )
+head( sort(top, decreasing=T), 10)
+
+```
+

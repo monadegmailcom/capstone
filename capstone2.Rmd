@@ -1,0 +1,126 @@
+---
+title: "Capstone2"
+author: "monade"
+date: "24 March 2016"
+output: html_document
+---
+
+# Todo #
+- write function to save a sample from a file
+  - operate on these 3 sample files then
+- create line based tdm from a line join of the sample files
+- use findAssoc to solve homework
+- the final prediction algorithm may be a combination for n-grams and assocs
+
+Load required libraries
+```{r, error=FALSE, warning=FALSE, message=FALSE}
+library(tm)
+library(RWeka)
+```
+
+Sample function
+```{r}
+writeSample <- function( path, lineCount, sampleCount )
+{
+  # open file
+  con <- file( path, "r")
+  
+  # read lines 
+  lines <- readLines( con, lineCount, skipNul = T )
+  
+  # close file
+  close( con )
+  
+  # sample lines
+  lines <- lines[sample.int(length(lines), sampleCount)]
+  
+  # output file name
+  path <- paste( "sample", basename( path ), sep="_" )
+  
+  # open output file
+  con <- file( path, "w")
+  
+  # write sample lines to output file
+  writeLines( lines, con )
+  
+  # close output file
+  close( con )
+}
+```
+
+Set seed
+```{r}
+set.seed( 37 )
+```
+
+Write sample files
+```{r}
+lineCount <- -1
+sampleCount <- 1000
+#writeSample( "../final/en_US/en_US.blogs.txt", lineCount, sampleCount )
+#writeSample( "../final/en_US/en_US.news.txt", lineCount, sampleCount )
+#writeSample( "../final/en_US/en_US.twitter.txt", lineCount, sampleCount )
+```
+
+Read and concat lines in files
+```{r}
+lines <- c(readLines("sample_en_US.blogs.txt"), 
+           readLines("sample_en_US.news.txt"), 
+           readLines("sample_en_US.twitter.txt"))
+```
+
+Create corpus and clean data
+```{r}
+# create corpus
+corpus <- VCorpus( VectorSource( lines ))
+
+# clean data
+corpus <- tm_map( corpus, stripWhitespace )
+corpus <- tm_map( corpus, content_transformer(tolower) )
+corpus <- tm_map( corpus, removeNumbers )
+corpus <- tm_map( corpus, removePunctuation )
+# dont know why this does not work
+#corpus <- tm_map( corpus, stemCompletion )
+```
+
+Create document term matrix
+```{r}
+dtm <- DocumentTermMatrix( corpus )
+```
+
+Get associations
+```{r}
+getAssoc <- function(str, l, r)
+{
+  assocs <- unlist(findAssocs( dtm, l, r))
+
+  str <- removePunctuation(removeWords(str, stopwords()))
+  sp <- unlist(strsplit(str, "\\s+"))
+  
+  f <- function(x) {bs = grepl(x,names(assocs)); assocs[bs]}
+  unlist(sapply(sp, f))
+}
+
+```
+
+Get n-gram document term matrix
+```{r}
+getNgramDtm <- function( corpus, ngram)
+{
+  # tokenize using n-grams
+  tok <- function(x) NGramTokenizer(x, Weka_control(min = ngram, max = ngram))
+  
+  # create term matrix
+  DocumentTermMatrix(corpus, control = list(tokenize=tok))
+}
+```
+
+Some samples
+```{r}
+l <- c("cheese", "beer", "soda", "prezels")
+str <- "The guy in front of me just bought a pound of bacon, a bouquet, and a case of"
+
+l <- c("most", "world", "best", "universe")
+str <- "You're the reason why I smile everyday. Can you follow me please? It would mean the"
+```
+
